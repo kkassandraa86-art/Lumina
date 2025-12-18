@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>P6: 首席天赋观察员 - Talent Unlimited</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- 引入 Remix Icon 图标库，提升图标精细度 -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700&display=swap');
+
+        :root { --gold: #d97706; --teal: #0d9488; }
+        body { 
+            font-family: 'Noto Sans SC', sans-serif; 
+            background-color: #f0f4f8; 
+            /* 更加细腻的背景纹理 */
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(251, 191, 36, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(20, 184, 166, 0.08) 0px, transparent 50%);
+            padding-bottom: 100px; /* 为底部导航留出空间 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .font-hand { font-family: 'Ma Shan Zheng', cursive; }
+        .font-serif { font-family: 'Noto Serif SC', serif; }
+        
+        /* 选中状态的 Toggle */
+        .toggle-checkbox:checked { right: 0; border-color: #0d9488; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #0d9488; }
+        
+        /* Tab 切换动画 - 淡入上浮 */
+        .tab-content { display: none; opacity: 0; transform: translateY(10px); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .tab-content.active { display: block; opacity: 1; transform: translateY(0); }
+
+        /* 登录页遮罩 */
+        #login-overlay { backdrop-filter: blur(12px); background-color: rgba(255, 255, 255, 0.7); }
+
+        /* 卡片悬停特效 */
+        .hover-card { transition: all 0.3s ease; }
+        .hover-card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+
+        /* 盖章动画 */
+        .stamp-animate { animation: stamp-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; opacity: 0; transform: scale(2) rotate(-15deg); }
+        @keyframes stamp-in { to { opacity: 1; transform: scale(1) rotate(-15deg); } }
+
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 打印样式 */
+        @media print {
+            @page { size: A4 portrait; margin: 0.5cm; }
+            body { background: white; padding-bottom: 0; }
+            #app-root, nav, .bottom-nav, .no-print, #login-overlay { display: none !important; }
+            #printable-area { display: block !important; }
+        }
+        #printable-area { display: none; }
+        
+        /* 桌面端特定的 Tab 样式 */
+        .desk-tab.active { background-color: #f1f5f9; color: #0f172a; font-weight: 700; }
+        .desk-tab { color: #64748b; }
+    </style>
+</head>
+<body class="text-slate-700">
+
+    <!-- 1. 登录全屏遮罩 (Login Overlay) -->
+    <div id="login-overlay" class="fixed inset-0 z-[100] flex items-center justify-center p-4 hidden animate-fadeIn">
+        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-8 border border-white/50 relative overflow-hidden">
+            <!-- 品牌光效 -->
+            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-400 via-orange-400 to-teal-500"></div>
+            
+            <div class="text-center mb-8 relative z-10">
+                <div class="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-4xl mb-4 shadow-inner">
+                    <i class="ri-telescope-line"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800 tracking-tight">星探行动</h2>
+                <p class="text-xs font-bold text-teal-600 uppercase tracking-widest mt-1">Powered by Talent Unlimited</p>
+                <p class="text-sm text-slate-400 mt-3 px-4">请输入您的代号，开启为期21天的天赋观察之旅。</p>
+            </div>
+            
+            <div class="space-y-5 relative z-10">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">观察员代号</label>
+                    <input type="text" id="login-name" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none text-center font-bold text-slate-700 transition placeholder:text-slate-300" placeholder="例如: 钢铁侠爸爸">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1 text-center">选择专属徽章色</label>
+                    <div class="flex justify-center gap-4" id="avatar-selector">
+                        <button onclick="selectColor('amber')" class="w-10 h-10 rounded-full bg-amber-500 shadow-lg shadow-amber-200 ring-4 ring-offset-2 ring-transparent hover:scale-110 transition color-btn" data-color="amber"></button>
+                        <button onclick="selectColor('teal')" class="w-10 h-10 rounded-full bg-teal-500 shadow-lg shadow-teal-200 ring-4 ring-offset-2 ring-transparent hover:scale-110 transition color-btn" data-color="teal"></button>
+                        <button onclick="selectColor('pink')" class="w-10 h-10 rounded-full bg-pink-500 shadow-lg shadow-pink-200 ring-4 ring-offset-2 ring-transparent hover:scale-110 transition color-btn" data-color="pink"></button>
+                        <button onclick="selectColor('indigo')" class="w-10 h-10 rounded-full bg-indigo-500 shadow-lg shadow-indigo-200 ring-4 ring-offset-2 ring-transparent hover:scale-110 transition color-btn" data-color="indigo"></button>
+                    </div>
+                </div>
+
+                <button onclick="handleLogin()" class="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-xl shadow-slate-200 hover:bg-black transition transform active:scale-[0.98] mt-2 flex items-center justify-center gap-2">
+                    <span>即刻出发</span>
+                    <i class="ri-arrow-right-line"></i>
+                </button>
+            </div>
+            
+            <div class="mt-8 text-[10px] text-center text-slate-300">
+                © 2025 Talent Unlimited. All Rights Reserved.
+            </div>
+        </div>
+    </div>
+
+    <!-- 主应用界面 -->
+    <div id="app-root">
+        
+        <!-- 顶部导航栏 (桌面端显示完整，移动端显示简化) -->
+        <header class="fixed top-0 left-0 w-full z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/60 transition-all duration-300">
+            <div class="max-w-5xl mx-auto px-4 h-16 flex justify-between items-center">
+                <!-- Logo -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-gradient-to-br from-amber-400 to-orange-500 text-white w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg shadow-md shadow-amber-200">P6</div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-800 text-sm leading-tight">首席天赋观察员</span>
+                        <span class="text-[10px] text-slate-400 scale-95 origin-left">Talent Unlimited</span>
+                    </div>
+                </div>
+
+                <!-- 桌面端中间导航 (Desktop Tabs) -->
+                <div class="hidden md:flex bg-slate-100/50 p-1 rounded-full border border-slate-200/50">
+                    <button onclick="switchView('dashboard')" id="desk-tab-dashboard" class="desk-tab active px-5 py-1.5 rounded-full text-sm transition-all flex items-center gap-2">
+                        <i class="ri-dashboard-3-line"></i> 观察台
+                    </button>
+                    <button onclick="switchView('forum')" id="desk-tab-forum" class="desk-tab px-5 py-1.5 rounded-full text-sm transition-all flex items-center gap-2">
+                        <i class="ri-community-line"></i> 星光社区
+                    </button>
+                </div>
+
+                <!-- 用户信息 & 进度 -->
+                <div class="flex items-center gap-3">
+                    <div class="hidden sm:flex flex-col items-end mr-2">
+                        <span class="text-xs font-bold text-slate-700" id="user-display-name">Guest</span>
+                        <button onclick="logout()" class="text-[10px] text-slate-400 hover:text-red-500 transition">切换账号</button>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 px-3 py-1 rounded-full flex items-center gap-2">
+                        <div class="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div id="progress-bar" class="h-full bg-amber-500 w-0 transition-all duration-1000"></div>
+                        </div>
+                        <span class="text-xs font-bold text-amber-600"><span id="nav-progress">0</span>/21</span>
+                    </div>
+                    <button onclick="prepareAndPrint()" class="hidden sm:flex w-8 h-8 items-center justify-center text-teal-600 bg-teal-50 rounded-full hover:bg-teal-100 transition" title="导出档案">
+                        <i class="ri-printer-line"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 内容区域 -->
+        <main class="max-w-5xl mx-auto px-4 pt-24 space-y-10">
+            
+            <!-- VIEW 1: Dashboard -->
+            <div id="view-dashboard" class="tab-content active">
+                
+                <!-- Hero Section: 宽屏适配 -->
+                <section class="relative rounded-3xl overflow-hidden bg-white p-6 sm:p-10 shadow-sm border border-slate-100">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-amber-100 to-transparent opacity-50 rounded-bl-full -mr-16 -mt-16 pointer-events-none"></div>
+                    
+                    <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                        <div class="text-center md:text-left flex-1">
+                            <div class="inline-flex items-center gap-2 mb-4 px-3 py-1 bg-orange-50 border border-orange-100 rounded-full">
+                                <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                                <span class="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Top Secret Mission</span>
+                            </div>
+                            <h1 class="text-3xl md:text-4xl font-serif font-bold text-slate-800 mb-4 leading-tight">
+                                寻找那个<span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-600">正在发光</span>的孩子
+                            </h1>
+                            <p class="text-sm text-slate-500 leading-relaxed max-w-lg">
+                                过去，我们是拿着放大镜找灰尘的“监工”；<br class="hidden md:block">
+                                从今天起，我们是拿着望远镜找星星的“星探”。
+                            </p>
+                            
+                            <!-- 宣誓按钮区 -->
+                            <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center md:justify-start items-center">
+                                <button id="sign-btn" onclick="signOath()" class="px-6 py-2.5 bg-slate-800 text-white text-sm font-bold rounded-xl shadow-lg hover:bg-black transition flex items-center gap-2">
+                                    <i class="ri-quill-pen-line"></i> 签署任命书
+                                </button>
+                                <div id="signature-display" class="hidden flex items-center gap-2 animate-fadeIn">
+                                    <span class="font-hand text-2xl text-slate-800">已任命</span>
+                                    <span class="stamp-animate px-2 py-0.5 border-2 border-amber-500 text-amber-600 text-[10px] font-bold uppercase tracking-wider rounded rotate-[-12deg]">Official</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 视觉装饰：思维对比卡 -->
+                        <div class="w-full md:w-auto flex flex-col gap-3">
+                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 w-full md:w-64">
+                                <div class="flex items-center gap-3 text-slate-400">
+                                    <i class="ri-search-line"></i>
+                                    <span class="line-through decoration-slate-300 text-xs">盯着缺点看</span>
+                                </div>
+                                <span class="text-xs text-amber-500 font-bold">➜ 捕捉高光</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 w-full md:w-64">
+                                <div class="flex items-center gap-3 text-slate-400">
+                                    <i class="ri-megaphone-line"></i>
+                                    <span class="line-through decoration-slate-300 text-xs">唠叨和催促</span>
+                                </div>
+                                <span class="text-xs text-teal-600 font-bold">➜ 采访提问</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 今日行动指引 (Action Card) -->
+                <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 今日任务卡 (占据 2/3) -->
+                    <div class="lg:col-span-2">
+                        <div class="flex items-center justify-between mb-3 px-1">
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="ri-flag-2-fill text-amber-500"></i> 今日任务</h2>
+                            <span class="text-xs text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm" id="guide-date">Day 1</span>
+                        </div>
+                        <div class="relative bg-gradient-to-br from-teal-600 to-emerald-800 rounded-2xl p-6 sm:p-8 text-white shadow-xl shadow-teal-100 overflow-hidden hover-card group cursor-pointer" onclick="openCurrentMission()">
+                            <!-- 装饰 -->
+                            <div class="absolute right-0 top-0 w-40 h-40 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:scale-110 transition duration-700"></div>
+                            
+                            <div class="relative z-10">
+                                <h2 class="text-3xl font-bold mb-3 flex items-center gap-3" id="guide-title">Loading...</h2>
+                                <p class="text-teal-100 text-sm mb-6 leading-relaxed max-w-lg" id="guide-desc">...</p>
+                                
+                                <div class="bg-black/20 backdrop-blur-md rounded-xl p-4 border border-white/10 flex items-start gap-3">
+                                    <div class="bg-amber-400 text-amber-900 w-6 h-6 rounded-full flex items-center justify-center font-bold text-sm shrink-0 mt-0.5 shadow">!</div>
+                                    <div>
+                                        <div class="text-[10px] font-bold uppercase tracking-wider text-white/60 mb-1">Action Item</div>
+                                        <div class="text-sm font-medium text-white" id="guide-task">...</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-6 flex items-center gap-2 text-xs font-bold text-white/80 group-hover:translate-x-2 transition">
+                                    点击去打卡 <i class="ri-arrow-right-line"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 工具箱入口 (占据 1/3) -->
+                    <div class="lg:col-span-1 flex flex-col gap-4">
+                        <div class="flex items-center justify-between mb-[-8px] px-1">
+                            <h2 class="text-lg font-bold text-slate-800">工具箱</h2>
+                        </div>
+                        <div class="flex-1 grid grid-cols-2 lg:grid-cols-1 gap-4">
+                            <button onclick="openTool('decoder')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover-card text-left relative overflow-hidden group h-full">
+                                <div class="absolute right-0 top-0 w-16 h-16 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition group-hover:bg-blue-100"></div>
+                                <i class="ri-translate-2 text-2xl text-blue-500 mb-2 inline-block"></i>
+                                <div class="text-sm font-bold text-slate-700 relative z-10">天赋解码器</div>
+                                <div class="text-[10px] text-slate-400 mt-1 relative z-10">缺点 → 天赋</div>
+                            </button>
+                            
+                            <button onclick="openTool('review')" class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover-card text-left relative overflow-hidden group h-full">
+                                <div class="absolute right-0 top-0 w-16 h-16 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition group-hover:bg-purple-100"></div>
+                                <i class="ri-list-check-2 text-2xl text-purple-500 mb-2 inline-block"></i>
+                                <div class="text-sm font-bold text-slate-700 relative z-10">每日复盘</div>
+                                <div class="text-[10px] text-slate-400 mt-1 relative z-10">睡前灵魂三问</div>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 21天全景地图 -->
+                <section>
+                    <div class="flex items-end justify-between mb-4 px-1">
+                        <h2 class="text-lg font-bold text-slate-800">全景地图</h2>
+                        <div class="text-xs text-slate-400 hover:text-red-500 cursor-pointer transition" onclick="resetData()">
+                            <i class="ri-refresh-line"></i> 重置进度
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <!-- 桌面端显示周头 -->
+                        <div class="hidden sm:grid grid-cols-7 text-center py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <div>Day 1</div><div>Day 2</div><div>Day 3</div><div>Day 4</div><div>Day 5</div><div>Day 6</div><div>Day 7</div>
+                        </div>
+                        <div id="calendar-grid" class="grid grid-cols-3 sm:grid-cols-7 gap-px bg-slate-100 border-b border-slate-100">
+                            <!-- JS 填充 -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <footer class="text-center py-8 no-print">
+                    <div class="text-[10px] font-bold text-slate-300 uppercase tracking-widest mb-1">Created by Talent Unlimited</div>
+                    <div class="text-[10px] text-slate-300">© 2025 All Rights Reserved.</div>
+                </footer>
+            </div>
+
+            <!-- VIEW 2: Community -->
+            <div id="view-forum" class="tab-content">
+                <div class="max-w-2xl mx-auto">
+                    <div class="text-center mb-8">
+                        <h2 class="text-2xl font-bold text-slate-800">星光社区</h2>
+                        <p class="text-xs text-slate-500 mt-2 bg-white inline-block px-3 py-1 rounded-full border border-slate-100 shadow-sm">
+                            <i class="ri-lock-unlock-line text-teal-500 mr-1"></i> 只显示公开分享的记录
+                        </p>
+                    </div>
+                    <div class="space-y-5 pb-20" id="community-feed">
+                        <!-- JS 填充 -->
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- 移动端底部导航 (Mobile Bottom Bar) -->
+        <div class="md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-slate-200 pb-safe z-50">
+            <div class="grid grid-cols-2 h-16">
+                <button onclick="switchView('dashboard')" class="bottom-nav-item active flex flex-col items-center justify-center gap-1 text-slate-400 transition-colors" id="mob-nav-dashboard">
+                    <i class="ri-dashboard-3-line text-xl mb-0.5"></i>
+                    <span class="text-[10px] font-medium">观察台</span>
+                </button>
+                <button onclick="switchView('forum')" class="bottom-nav-item flex flex-col items-center justify-center gap-1 text-slate-400 transition-colors" id="mob-nav-forum">
+                    <i class="ri-community-line text-xl mb-0.5"></i>
+                    <span class="text-[10px] font-medium">社区</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 弹窗：打卡记录 (Action Modal) -->
+        <div id="task-modal" class="fixed inset-0 z-[80] hidden">
+            <!-- 背景遮罩 -->
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+            
+            <!-- 弹窗本体：手机底部滑出，桌面居中 -->
+            <div class="absolute bottom-0 left-0 right-0 sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:w-[500px] h-[85vh] sm:h-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-slideUp overflow-hidden">
+                
+                <!-- 头部 -->
+                <div class="relative h-32 bg-gradient-to-r from-amber-400 to-orange-500 flex items-center px-8 shrink-0">
+                    <div class="absolute right-0 bottom-0 opacity-20 text-8xl transform translate-y-2 translate-x-2">🔭</div>
+                    <div class="text-white z-10 w-full">
+                        <div class="flex justify-between items-start">
+                            <div class="text-xs font-bold uppercase tracking-wider opacity-80 mb-1" id="modal-label">MISSION DAY 1</div>
+                            <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition backdrop-blur-sm">
+                                <i class="ri-close-line text-xl"></i>
+                            </button>
+                        </div>
+                        <h3 class="text-2xl font-bold flex items-center gap-2" id="modal-title">高光时刻</h3>
+                    </div>
+                </div>
+                
+                <!-- 内容滚动区 -->
+                <div class="p-6 overflow-y-auto flex-1 bg-white">
+                    <!-- 指引 -->
+                    <div class="bg-amber-50 rounded-2xl p-4 mb-4 border border-amber-100/50">
+                        <div class="flex gap-3">
+                            <i class="ri-lightbulb-flash-line text-amber-500 text-lg mt-0.5"></i>
+                            <p class="text-sm text-slate-700 leading-relaxed" id="modal-guide">...</p>
+                        </div>
+                    </div>
+
+                    <!-- 具体任务 -->
+                    <div class="mb-5 bg-teal-50 text-teal-800 p-4 rounded-2xl border border-teal-100/50 text-sm font-medium flex gap-3 items-start">
+                        <span class="bg-teal-200 text-teal-800 text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0">ACTION</span>
+                        <span id="modal-action-task">...</span>
+                    </div>
+
+                    <!-- 输入框 -->
+                    <div class="relative">
+                        <textarea id="modal-input" class="w-full h-32 p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-amber-400 focus:bg-white outline-none transition-all resize-none text-slate-700 text-sm placeholder:text-slate-300" placeholder="记录下今天的发现..."></textarea>
+                    </div>
+                    <div class="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+                        <i class="ri-magic-line"></i>
+                        <span id="modal-hint">灵感句式...</span>
+                    </div>
+
+                    <!-- 隐私开关 -->
+                    <div class="mt-5 flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-slate-700 flex items-center gap-1">
+                                <i class="ri-share-forward-line text-teal-500"></i> 同步到社区
+                            </span>
+                            <span class="text-[10px] text-slate-400">以“<span id="privacy-user-name" class="text-amber-600 font-bold">我</span>”的身份发布</span>
+                        </div>
+                        <div class="relative inline-block w-12 h-6 align-middle select-none">
+                            <input type="checkbox" id="privacy-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 transition-all duration-300"/>
+                            <label for="privacy-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部按钮 -->
+                <div class="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
+                    <button onclick="saveEntry()" class="w-full py-3.5 bg-slate-800 text-white rounded-xl font-bold shadow-lg shadow-slate-200 active:scale-[0.98] transition flex items-center justify-center gap-2">
+                        <i class="ri-check-double-line"></i> 完成打卡
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 弹窗：工具箱 (Tool Modal) -->
+        <div id="tool-modal" class="fixed inset-0 z-[90] hidden">
+            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onclick="closeToolModal()"></div>
+            <div class="absolute bottom-0 left-0 right-0 sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:w-[450px] h-[70vh] sm:h-[600px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-slideUp">
+                <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-3xl">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2 text-lg" id="tool-modal-title"></h3>
+                    <button onclick="closeToolModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition text-slate-500">
+                        <i class="ri-close-line text-xl"></i>
+                    </button>
+                </div>
+                <div class="p-5 overflow-y-auto space-y-4 bg-white" id="tool-modal-content"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 打印区域 -->
+    <div id="printable-area">
+        <div class="p-8 font-serif relative h-full">
+            <div class="absolute top-0 right-0 opacity-20 text-xs font-bold text-slate-400 uppercase tracking-[0.2em] border border-slate-300 px-2 py-1">Talent Unlimited Original</div>
+            
+            <div class="text-center border-b-2 border-slate-100 pb-6 mb-6">
+                <h1 class="text-3xl font-bold text-slate-800 mb-2">首席天赋观察员 · 结营档案</h1>
+                <div class="text-sm text-slate-500 italic">"Every child is a star waiting to be discovered."</div>
+            </div>
+
+            <div class="flex justify-between mb-8 text-sm">
+                <div>
+                    <span class="text-slate-400 uppercase text-xs font-bold block mb-1">Observer</span>
+                    <span class="font-bold text-lg" id="print-user">--</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-slate-400 uppercase text-xs font-bold block mb-1">Date</span>
+                    <span class="font-bold" id="print-date">--</span>
+                </div>
+            </div>
+
+            <div id="print-content" class="text-xs leading-relaxed space-y-4 columns-2 gap-8"></div>
+
+            <div class="mt-12 pt-8 border-t border-slate-100 flex justify-between items-end">
+                <div class="text-[10px] text-slate-400">
+                    <p class="font-bold">Powered by Talent Unlimited</p>
+                    <p>© 2025 All Rights Reserved.</p>
+                </div>
+                <div class="text-center w-40">
+                    <div class="border-t border-slate-300 pt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Chief Observer Signature</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 完整数据配置 (21天) ---
+        const tasks = [
+            { id: 1, theme: "高光时刻", icon: "ri-flashlight-line", guide: "今天只记录孩子眼睛发光的时刻。哪怕只是在玩游戏，全神贯注就是光。", action: "拍一张他专注时的侧影（不打扰他）。", template: "孩子在做___时眼睛很亮，投入了极大的热情..." },
+            { id: 2, theme: "沉浸力", icon: "ri-focus-3-line", guide: "观察孩子忘记时间的时刻。喊他吃饭都听不见？这是心流。", action: "在旁边默默观察3分钟，不要打断。", template: "他在___上专注了很久，完全沉浸其中..." },
+            { id: 3, theme: "独特提问", icon: "ri-question-answer-line", guide: "记录一个好问题。不要急着给答案，欣赏提问角度。", action: "反问一句：'这个问题很有意思，你觉得呢？'", template: "他问了一个有趣的问题：___，角度很独特..." },
+            { id: 4, theme: "抗逆力", icon: "ri-plant-line", guide: "观察遇到困难没放弃的瞬间。哪怕只多试了一次。", action: "对他说：'我看到你试了好几次，没有放弃。'", template: "虽然很难，但他尝试了___，没有轻言放弃..." },
+            { id: 5, theme: "幽默感", icon: "ri-emotion-laugh-line", guide: "记录孩子让你笑的时刻。幽默是高级智力。", action: "记录下这件趣事，晚上吃饭时分享给全家。", template: "他做了一件趣事：___，全家都笑了..." },
+            { id: 6, theme: "助人倾向", icon: "ri-hand-heart-line", guide: "观察主动帮助他人的时刻。这是同理心。", action: "故意掉个东西，看他会不会帮忙捡。", template: "他主动帮忙做了___，很贴心..." },
+            { id: 7, theme: "周复盘", icon: "ri-mail-star-line", guide: "给孩子写一张“高光小纸条”，选3个优点写下来。", action: "写下3个优点，偷偷放在他的枕头下。", template: "我给他的反馈是___，他的反应是___" },
+            { id: 8, theme: "破坏(好奇)", icon: "ri-hammer-line", guide: "孩子拆东西是在探索原理。别骂，问他在研究什么。", action: "给他一个废旧盒子让他拆，问他在研究什么。", template: "他弄乱了___，原来是想研究___" },
+            { id: 9, theme: "顶嘴(逻辑)", icon: "ri-chat-voice-line", guide: "顶嘴是辩论能力的萌芽。观察他的逻辑。", action: "耐听完他的理由，并评价他的逻辑性。", template: "虽然在争辩，但他的逻辑是___，很有条理..." },
+            { id: 10, theme: "磨蹭(严谨)", icon: "ri-turtle-line", guide: "慢可能是因为追求完美或在意细节。", action: "即使快迟到了，也试着不催促一次，观察他在意什么。", template: "他在___上很慢，因为他在意___，很细心..." },
+            { id: 11, theme: "资源整合", icon: "ri-recycle-line", guide: "看他如何用有限的条件解决问题。", action: "给他几个空瓶子，看他能玩出什么花样。", template: "他用___代替了___解决问题，很有想法..." },
+            { id: 12, theme: "社交角色", icon: "ri-group-line", guide: "在群体中他是组织者？跟随者？还是润滑剂？", action: "观察他在游乐场是组织者还是跟随者。", template: "在人群中，他的角色倾向于___，表现出..." },
+            { id: 13, theme: "审美直觉", icon: "ri-palette-line", guide: "对颜色、音乐、空间的敏感评价。", action: "问他觉得今天的晚霞是什么味道的。", template: "他对___的评价很有个人风格..." },
+            { id: 14, theme: "天赋翻译", icon: "ri-translate-2", guide: "把一个缺点翻译成天赋词（如固执=执着）。", action: "使用工具箱里的解码器，翻译一个缺点。", template: "原本觉得缺点是___，翻译成天赋是___" },
+            { id: 15, theme: "二级反馈", icon: "ri-thumb-up-line", guide: "不夸“你真棒”，夸“我看到你做了...”。", action: "用'我看到...'的句式表扬一个具体细节。", template: "我对他进行了具体的表扬：我看到你___..." },
+            { id: 16, theme: "被需要感", icon: "ri-lifebuoy-line", guide: "向孩子示弱求助，观察他的责任感。", action: "向他示弱求助：'能帮妈妈/爸爸拿一下那个吗？'", template: "我向他求助___，他表现得很有担当..." },
+            { id: 17, theme: "情绪命名", icon: "ri-user-heart-line", guide: "帮他说出情绪：“你现在看起来很沮丧...”。", action: "帮他说出情绪：'看来你现在有点沮丧，是吗？'", template: "我帮他命名了情绪___，他感觉被理解了..." },
+            { id: 18, theme: "非语言", icon: "ri-heart-pulse-line", guide: "一个长拥抱，或肯定的眼神。", action: "给他一个超过10秒的拥抱，不说话。", template: "今天给了他一个拥抱，感觉距离拉近了..." },
+            { id: 19, theme: "梦想投射", icon: "ri-rocket-2-line", guide: "听他说“长大想做...”，别打击。", action: "不管他说想做什么，都说'听起来很酷'。", template: "他的梦想是___，我鼓励说听起来很酷..." },
+            { id: 20, theme: "高光访谈", icon: "ri-mic-line", guide: "像记者一样采访他的成功经验。", action: "像记者一样采访他：'你是怎么做到的？'", template: "采访了他关于___的事，他说秘诀是..." },
+            { id: 21, theme: "结营仪式", icon: "ri-trophy-line", guide: "汇总观察，颁发《天赋确认函》。", action: "给他一个大大的High Five，庆祝毕业！", template: "总结这21天，我发现他是一块___，闪闪发光..." }
+        ];
+
+        const translations = [
+            { weakness: "坐不住/好动", talent: "身体动觉智能强，精力充沛，适合实践学习。" },
+            { weakness: "爱插嘴/话多", talent: "语言表达能力强，思维敏捷，有展示欲。" },
+            { weakness: "固执/倔强", talent: "意志坚定，有主见，不易受他人影响。" },
+            { weakness: "爱发号施令", talent: "具备组织能力和领导潜质。" },
+            { weakness: "敏感/爱哭", talent: "情感细腻，同理心强，感知力高。" },
+            { weakness: "磨蹭/拖延", talent: "活在当下，追求完美，或者是对该任务缺乏兴趣。" },
+            { weakness: "胆小/谨慎", talent: "风险意识强，思考周全，不鲁莽。" }
+        ];
+
+        const reviews = [
+            "今天我有没有忍不住想插手/批评？如果是，是什么触发了我的焦虑？",
+            "今天孩子最让我惊喜的一个瞬间是什么？",
+            "如果把今天看作电影的一幕，这个主角（孩子）的人设亮点是什么？"
+        ];
+
+        const mockPosts = [
+            { id: 'm1', user: "果果妈", color: "pink", day: 1, text: "以前觉得玩乐高是浪费时间，今天发现他专注力惊人。#高光时刻", time: 1699900000000, likes: 12 },
+            { id: 'm2', user: "大卫爸爸", color: "blue", day: 3, text: "孩子说月亮喜欢我们才跟着走，太浪漫了。", time: 1699800000000, likes: 28 },
+            { id: 'm3', user: "小丸子", color: "teal", day: 2, text: "画画半小时没动地方，这就是心流。", time: 1699850000000, likes: 5 }
+        ];
+
+        // --- 2. 状态管理 ---
+        let appData = JSON.parse(localStorage.getItem('p6_data_v4')) || {};
+        let currentUser = JSON.parse(localStorage.getItem('p6_user_v4')) || null;
+        let isSigned = localStorage.getItem('p6Signed') === 'true'; 
+        let selectedColor = 'amber';
+        let currentTaskId = null;
+
+        // --- 3. 初始化 ---
+        function init() {
+            if (!currentUser) {
+                document.getElementById('login-overlay').classList.remove('hidden');
+            } else {
+                setupUI();
+            }
+        }
+
+        // --- 4. UI 逻辑 ---
+        function selectColor(color) {
+            selectedColor = color;
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.classList.remove('ring-slate-400');
+                if (btn.dataset.color === color) btn.classList.add('ring-slate-400');
+            });
+        }
+
+        function handleLogin() {
+            const name = document.getElementById('login-name').value.trim();
+            if (!name) return alert("请先输入一个好听的代号！");
+            currentUser = { name: name, color: selectedColor };
+            localStorage.setItem('p6_user_v4', JSON.stringify(currentUser));
+            document.getElementById('login-overlay').classList.add('hidden');
+            setupUI();
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        }
+
+        function logout() {
+            if(confirm("确定要切换账号吗？")) {
+                localStorage.removeItem('p6_user_v4');
+                location.reload();
+            }
+        }
+
+        function signOath() {
+            document.getElementById('sign-btn').classList.add('hidden');
+            document.getElementById('signature-display').classList.remove('hidden');
+            document.getElementById('signature-display').classList.add('flex');
+            localStorage.setItem('p6Signed', 'true');
+            isSigned = true;
+            if (typeof confetti !== 'undefined') confetti({ origin: { x: 0.2, y: 0.5 }, colors: ['#d97706'] });
+        }
+
+        function setupUI() {
+            document.getElementById('user-display-name').innerText = currentUser.name;
+            document.getElementById('privacy-user-name').innerText = currentUser.name;
+            if (isSigned) {
+                document.getElementById('sign-btn').classList.add('hidden');
+                document.getElementById('signature-display').classList.remove('hidden');
+                document.getElementById('signature-display').classList.add('flex');
+            }
+            renderCalendar();
+            updateDailyGuide();
+            renderCommunity();
+            updateStats();
+        }
+
+        // --- 5. 核心逻辑 (日历、弹窗、工具箱) ---
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            tasks.forEach(task => {
+                const done = appData[task.id];
+                const bg = done ? 'bg-amber-50 border-amber-200' : 'bg-white hover:bg-slate-50';
+                const iconColor = done ? 'text-amber-500 opacity-100 scale-110' : 'text-slate-300 opacity-70';
+                const check = done ? '<i class="ri-check-line absolute top-1 right-1 text-amber-500 text-xs"></i>' : '';
+                
+                // 确保 i 标签正确关闭
+                grid.innerHTML += `
+                    <div onclick="openModal(${task.id})" class="${bg} relative p-3 flex flex-col items-center justify-center h-28 sm:h-32 cursor-pointer transition-all duration-300 group border-b border-r border-slate-100/80">
+                        <span class="absolute top-2 left-2 text-[10px] font-bold text-slate-300 group-hover:text-amber-500 transition-colors">D${task.id}</span>
+                        ${check}
+                        <i class="${task.icon} text-2xl mb-2 transition-all duration-300 ${iconColor}"></i>
+                        <div class="text-[10px] text-center text-slate-500 group-hover:text-slate-800 font-medium px-1 leading-tight">${task.theme}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function updateDailyGuide() {
+            let nextId = tasks.find(t => !appData[t.id])?.id || 1;
+            const task = tasks.find(t => t.id === nextId);
+            
+            document.getElementById('guide-date').innerText = `Day ${nextId}`;
+            document.getElementById('guide-title').innerHTML = `<i class="${task.icon}"></i> ${task.theme}`;
+            document.getElementById('guide-desc').innerText = task.guide;
+            document.getElementById('guide-task').innerText = task.action;
+            window.openCurrentMission = () => openModal(nextId);
+        }
+
+        function openModal(id) {
+            currentTaskId = id;
+            const task = tasks.find(t => t.id === id);
+            const entry = appData[id];
+            
+            document.getElementById('task-modal').classList.remove('hidden');
+            document.getElementById('modal-label').innerText = `MISSION DAY ${id}`;
+            document.getElementById('modal-title').innerHTML = `<i class="${task.icon} mr-2"></i> ${task.theme}`;
+            document.getElementById('modal-guide').innerText = task.guide;
+            document.getElementById('modal-action-task').innerText = task.action;
+            document.getElementById('modal-hint').innerText = task.template;
+            document.getElementById('modal-input').value = entry ? entry.text : '';
+            document.getElementById('privacy-toggle').checked = entry ? entry.public : false;
+        }
+
+        function closeModal() { document.getElementById('task-modal').classList.add('hidden'); }
+
+        function saveEntry() {
+            const text = document.getElementById('modal-input').value.trim();
+            const isPublic = document.getElementById('privacy-toggle').checked;
+            
+            if (currentTaskId && text) {
+                appData[currentTaskId] = {
+                    text: text,
+                    public: isPublic,
+                    timestamp: Date.now(),
+                    authorName: currentUser.name,
+                    authorColor: currentUser.color
+                };
+                localStorage.setItem('p6_data_v4', JSON.stringify(appData));
+                
+                confetti({ origin: { y: 0.8 }, colors: ['#fbbf24', '#0d9488'] });
+                
+                renderCalendar();
+                updateStats();
+                updateDailyGuide();
+                
+                if (isPublic) {
+                    renderCommunity();
+                    setTimeout(() => {
+                        if(confirm("发布成功！要去社区看看吗？")) switchView('forum');
+                    }, 500);
+                } else {
+                    // Show a simple toast or alert
+                    alert("记录已保存。");
+                }
+                closeModal();
+            }
+        }
+
+        // --- 工具箱逻辑 ---
+        function openTool(type) {
+            const modal = document.getElementById('tool-modal');
+            const title = document.getElementById('tool-modal-title');
+            const content = document.getElementById('tool-modal-content');
+            
+            modal.classList.remove('hidden');
+            
+            if (type === 'decoder') {
+                title.innerHTML = '<i class="ri-translate-2 text-teal-600"></i> 天赋解码器';
+                content.innerHTML = translations.map((t, i) => `
+                    <details class="group bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                        <summary class="p-4 cursor-pointer list-none flex items-center justify-between hover:bg-white transition select-none">
+                            <span class="font-bold text-slate-500 group-open:text-red-400 line-through decoration-slate-300 group-open:no-underline group-open:decoration-transparent transition-all">
+                                ${t.weakness}
+                            </span>
+                            <span class="text-xs text-slate-400 group-open:hidden">点击揭秘 <i class="ri-arrow-right-s-line"></i></span>
+                        </summary>
+                        <div class="px-4 pb-4 pt-1 bg-white border-t border-slate-100">
+                            <div class="text-xs font-bold text-teal-600 mb-1">天赋真相：</div>
+                            <p class="text-sm text-slate-800 font-medium">${t.talent}</p>
+                        </div>
+                    </details>
+                `).join('');
+            } else if (type === 'review') {
+                title.innerHTML = '<i class="ri-list-check-2 text-amber-600"></i> 每日复盘三问';
+                content.innerHTML = `
+                    <div class="bg-amber-50 p-4 rounded-xl text-sm text-amber-900 border border-amber-100 mb-4 flex gap-2">
+                        <i class="ri-moon-line text-lg"></i>
+                        建议每晚睡前，花2分钟思考以下问题：
+                    </div>
+                    <ul class="space-y-4">
+                        ${reviews.map((r, i) => `
+                            <li class="flex gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100 items-start">
+                                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center mt-0.5">${i + 1}</span>
+                                <p class="text-slate-700 font-medium leading-relaxed text-sm">${r}</p>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            }
+        }
+        function closeToolModal() { document.getElementById('tool-modal').classList.add('hidden'); }
+
+        // --- 社区与辅助 ---
+        function renderCommunity() {
+            const container = document.getElementById('community-feed');
+            container.innerHTML = '';
+            
+            const userPosts = Object.keys(appData).map(key => {
+                const entry = appData[key];
+                if (entry.public && entry.text) {
+                    return {
+                        id: `u_${key}`,
+                        user: entry.authorName,
+                        color: entry.authorColor || 'amber',
+                        day: key,
+                        text: entry.text,
+                        time: entry.timestamp,
+                        isMine: true
+                    };
+                }
+                return null;
+            }).filter(Boolean);
+
+            const allPosts = [...userPosts, ...mockPosts].sort((a, b) => b.time - a.time);
+
+            if (allPosts.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 py-10 flex flex-col items-center"><i class="ri-chat-1-line text-4xl mb-2 opacity-30"></i><p>这里静悄悄的，快来发布第一条动态吧！</p></div>`;
+                return;
+            }
+
+            allPosts.forEach(post => {
+                const task = tasks.find(t => t.id == post.day) || { theme: "日常" };
+                const isMineClass = post.isMine ? "border-amber-200 bg-amber-50/30" : "border-slate-100 bg-white";
+                
+                const colorMap = {
+                    amber: "bg-amber-100 text-amber-600",
+                    teal: "bg-teal-100 text-teal-600",
+                    pink: "bg-pink-100 text-pink-600",
+                    blue: "bg-blue-100 text-blue-600",
+                    indigo: "bg-indigo-100 text-indigo-600"
+                };
+                const avatarClass = colorMap[post.color] || colorMap['amber'];
+
+                const html = `
+                    <div class="p-5 rounded-2xl shadow-sm border ${isMineClass} transition animate-slideUp">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full flex items-center justify-center ${avatarClass} font-bold text-sm shadow-sm">
+                                    ${post.user[0]}
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                        ${post.user}
+                                        ${post.isMine ? '<span class="bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-normal">Me</span>' : ''}
+                                    </div>
+                                    <div class="text-[10px] text-slate-400">${formatTime(post.time)}</div>
+                                </div>
+                            </div>
+                            <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-1 rounded-md">Day ${post.day} · ${task.theme}</span>
+                        </div>
+                        <p class="text-slate-700 text-sm leading-relaxed mb-3 pl-[52px]">${post.text}</p>
+                        <div class="flex items-center justify-between pl-[52px] pt-2">
+                            <button class="text-slate-400 hover:text-pink-500 transition text-sm flex items-center gap-1"><i class="ri-heart-line"></i> ${post.likes || 0}</button>
+                            ${post.isMine ? `<button onclick="deletePost(${post.day})" class="text-[10px] text-slate-400 hover:text-red-500">删除</button>` : ''}
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        function switchView(view) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${view}`).classList.add('active');
+            
+            // Mobile Nav
+            document.querySelectorAll('.bottom-nav-item').forEach(el => {
+                el.classList.remove('active', 'text-amber-600');
+                el.classList.add('text-slate-400');
+            });
+            const mobBtn = document.getElementById(`mob-nav-${view}`);
+            mobBtn.classList.add('active', 'text-amber-600');
+            mobBtn.classList.remove('text-slate-400');
+
+            // Desktop Nav
+            document.querySelectorAll('.desk-tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(`desk-tab-${view}`).classList.add('active');
+
+            if(view === 'forum') renderCommunity();
+        }
+
+        function updateStats() {
+            const count = Object.keys(appData).length;
+            document.getElementById('nav-progress').innerText = count;
+            const percentage = Math.min((count / 21) * 100, 100);
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+        }
+
+        function deletePost(id) {
+            if(confirm("确定撤回这条动态吗？（仅撤回社区显示，本地仍保留）")) {
+                if(appData[id]) {
+                    appData[id].public = false;
+                    localStorage.setItem('p6_data_v4', JSON.stringify(appData));
+                    renderCommunity();
+                }
+            }
+        }
+
+        function resetData() {
+            if(confirm("确定要清空所有数据重新开始吗？")) {
+                localStorage.removeItem('p6_data_v4');
+                localStorage.removeItem('p6Signed');
+                location.reload();
+            }
+        }
+
+        function prepareAndPrint() {
+            document.getElementById('print-user').innerText = currentUser ? currentUser.name : '--';
+            document.getElementById('print-date').innerText = new Date().toLocaleDateString();
+            let html = '';
+            tasks.forEach(t => {
+                if(appData[t.id]) {
+                    html += `
+                        <div class="mb-4 break-inside-avoid">
+                            <div class="font-bold text-slate-800 mb-1 flex items-center gap-2">
+                                <span class="bg-slate-100 px-1 rounded text-slate-500 text-[10px]">Day ${t.id}</span>
+                                ${t.theme}
+                            </div>
+                            <div class="text-slate-600 border-l-2 border-amber-200 pl-3 italic">${appData[t.id].text}</div>
+                        </div>`;
+                }
+            });
+            document.getElementById('print-content').innerHTML = html || "<p class='italic text-slate-400'>暂无记录</p>";
+            setTimeout(() => window.print(), 300);
+        }
+
+        function formatTime(ts) {
+            const diff = (Date.now() - ts) / 1000;
+            if (diff < 60) return '刚刚';
+            if (diff < 3600) return Math.floor(diff/60) + '分钟前';
+            if (diff < 86400) return Math.floor(diff/3600) + '小时前';
+            return new Date(ts).toLocaleDateString();
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>
